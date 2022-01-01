@@ -12,6 +12,7 @@ from monthlyexpensesummarizer.argparser import ArgParser
 from monthlyexpensesummarizer.common import MonthlyExpenseSummarizerEnvVar
 from monthlyexpensesummarizer.constants import MONTHLY_EXPENSE_SUMMARIZER_MODULE_NAME, REPO_ROOT_DIRNAME
 from monthlyexpensesummarizer.config import ParserConfigReader
+from monthlyexpensesummarizer.parser import InputFileParser
 
 LOG = logging.getLogger(__name__)
 
@@ -56,12 +57,20 @@ class MonthlyExpenseSummarizer:
     def start(self):
         config_samples_dir = SimpleProjectUtils.get_project_dir(
             basedir=LocalDirs.REPO_ROOT_DIR,
-            dir_to_find="config_samples",
+            dir_to_find="parser_config",
+            find_result_type=FindResultType.DIRS,
+            parent_dir=REPO_ROOT_DIRNAME
+        )
+        input_files_dir = SimpleProjectUtils.get_project_dir(
+            basedir=LocalDirs.REPO_ROOT_DIR,
+            dir_to_find="expense_files",
             find_result_type=FindResultType.DIRS,
             parent_dir=REPO_ROOT_DIRNAME
         )
         sample_project_filename = os.path.join(config_samples_dir, "parserconfig.json")
+        input_filename = os.path.join(input_files_dir, "expenses-202108")
         config = ParserConfigReader.read_from_file(filename=sample_project_filename)
+        InputFileParser.parse(input_filename)
         LOG.info("Read project config: %s", pformat(config))
 
 
