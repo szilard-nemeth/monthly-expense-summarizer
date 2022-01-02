@@ -59,6 +59,7 @@ class DiagnosticPrinter:
 # TODO Rename to ParsedItem?
 @dataclass
 class ParsedExpense:
+    date: str
     payment_method_marker: str
     payment_method_postfix: str
     amount: int
@@ -161,33 +162,39 @@ class InputFileParser:
             return line_range
 
     def _get_lines_by_ranges(self):
-        result: List[List[str]] = []
+        result: List[Tuple[List[str], str]] = []
+        curr_date_idx = 0
         for range in self.expense_line_ranges:
-            result.append(self.lines_of_file[range[0]:range[1] + 1])
+            list_of_lines = self.lines_of_file[range[0]:range[1] + 1]
+            if (len(self.date_lines) - 1) != curr_date_idx and range[1] > self.date_lines[curr_date_idx + 1]:
+                curr_date_idx += 1
+            date_idx = self.date_lines[curr_date_idx]
+            date = self.lines_of_file[date_idx]
+            result.append((list_of_lines, date))
         return result
 
     def _process_line_ranges(self):
-        self.lines_by_ranges: List[List[str]] = self._get_lines_by_ranges()
+        self.lines_by_ranges: List[Tuple[List[str], str]] = self._get_lines_by_ranges()
 
         parsed_expenses: List[ParsedExpense] = []
-        for list_of_lines in self.lines_by_ranges:
+        for list_of_lines, date in self.lines_by_ranges:
             lines = "\n".join(list_of_lines)
             match = re.match(self.config.expense_regex, lines, re.MULTILINE)
             if not match:
                 LOG.error("Expense not matched: %s", lines)
                 continue
             self.printer.print_line(match, InfoType.MATCH_OBJECT)
-            parsed_expenses.append(self._create_expense_from_match_groups(match))
+            parsed_expenses.append(self._create_expense_from_match_groups(match, date))
         return parsed_expenses
 
-    def _create_expense_from_match_groups(self, match):
+    def _create_expense_from_match_groups(self, match, date: str):
         payment_method_marker = match.group(MandatoryExpenseField.PAYMENT_METHOD_MARKER.value)
         amount = match.group(MandatoryExpenseField.AMOUNT.value)
         title = match.group(MandatoryExpenseField.TITLE.value)
         details = match.group(MandatoryExpenseField.DETAILS.value)
         more_details = match.group(MandatoryExpenseField.MORE_DETAILS.value)
         payment_method_postfix = match.group(MandatoryExpenseField.PAYMENT_METHOD_POSTFIX.value)
-        parsed_expense = ParsedExpense(payment_method_marker, payment_method_postfix, self._convert_amount_str(amount), title, details, more_details)
+        parsed_expense = ParsedExpense(date, payment_method_marker, payment_method_postfix, self._convert_amount_str(amount), title, details, more_details)
         parsed_expense.post_init(self.config)
         return parsed_expense
 
