@@ -17,6 +17,7 @@ LOG = logging.getLogger(__name__)
 @dataclass
 class PaymentMethod:
     short_name: str
+    display_name: str
     prefix_symbol: str
     postfix_symbols: List[str] = field(default_factory=list)
     name: str or None = field(default=None)
@@ -39,6 +40,7 @@ class MandatoryExpenseField(Enum):
     TITLE = "TITLE"
     DETAILS = "DETAILS"
     MORE_DETAILS = "MORE_DETAILS" # https://stackoverflow.com/a/587518/1106893
+    PAYMENT_METHOD_POSTFIX = "PAYMENT_METHOD_POSTFIX"
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -65,6 +67,7 @@ class GenericParserSettings:
     income_settings: IncomeSettings
     expense_format: ExpenseFormat
     more_details_spans_to_multiple_lines: bool
+    thousands_separator_chars: List[str] = field(default_factory=list)
     expense_details_separator_strings: List[str] = field(default_factory=list)
     expense_more_details_separator_strings: List[str] = field(default_factory=list)
     expense_more_details_close_strings: List[str] = field(default_factory=list)
@@ -88,12 +91,20 @@ class ParserConfig:
     expense_categories: Dict[str, ExpenseCategory] = field(default_factory=dict)
     date_regexes: List[Pattern] = field(default_factory=list)
     expense_regex: str = None
+    payment_methods_by_prefix_symbol: Dict[str, PaymentMethod] = field(default_factory=dict)
+    payment_methods_by_postfix: Dict[str, PaymentMethod] = field(default_factory=dict)
 
     def __post_init__(self):
         for name, pm in self.payment_methods.items():
             pm.name = name
         for name, ec in self.expense_categories.items():
             ec.name = name
+        for pm in self.payment_methods.values():
+            for postfix in pm.postfix_symbols:
+                self.payment_methods_by_postfix[postfix] = pm
+
+        for pm in self.payment_methods.values():
+            self.payment_methods_by_prefix_symbol[pm.prefix_symbol] = pm
         LOG.info("Initialized parser config")
 
 
@@ -181,8 +192,8 @@ class ParserConfigReader:
             field_object = field_objects[field_name]
             group_name = field_name
             if group_name not in used_group_names:
-                final_regex += self._create_regex(group_name, field_object)
                 used_group_names[group_name] = 1
+                final_regex += self._create_regex(group_name, field_object)
             else:
                 if group_name not in self.mandatory_field_names:
                     used_group_names[group_name] += 1
