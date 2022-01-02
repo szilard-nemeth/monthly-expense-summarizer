@@ -67,20 +67,13 @@ class ParsedExpense:
     payment_method: PaymentMethod or None = None
 
     def post_init(self, config: ParserConfig):
-        found_prefix = True if self.payment_method_marker in config.payment_methods_by_prefix_symbol else False
-        found_postfix = True if self.payment_method_postfix in config.payment_methods_by_postfix else False
+        payment_method_key = (self.payment_method_marker, self.payment_method_postfix)
 
-        if not found_prefix:
-            LOG.error("Unrecognized payment method marker for expense: %s", self)
+        if payment_method_key not in config.payment_methods_by_prefix_and_postfix:
+            LOG.error("Unrecognized payment method for expense: %s", self)
             self.payment_method = None
         else:
-            self.payment_method = config.payment_methods_by_prefix_symbol[self.payment_method_marker]
-
-        if not found_postfix:
-            LOG.error("Unrecognized payment method postfix for expense: %s", self)
-            self.payment_method = None
-        else:
-            self.payment_method = config.payment_methods_by_postfix[self.payment_method_postfix]
+            self.payment_method = config.payment_methods_by_prefix_and_postfix[payment_method_key]
 
 
 class InputFileParser:

@@ -4,7 +4,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Dict, Set, Pattern
+from typing import List, Dict, Set, Pattern, Tuple
 
 from dataclasses_json import dataclass_json, LetterCase
 from pythoncommons.date_utils import DateUtils
@@ -49,6 +49,7 @@ class ExpenseField:
     type: ExpenseFieldType
     value: str
     optional: bool
+    extract_inner_group: bool = False
 
 
 @dataclass_json(letter_case=LetterCase.CAMEL)
@@ -91,8 +92,7 @@ class ParserConfig:
     expense_categories: Dict[str, ExpenseCategory] = field(default_factory=dict)
     date_regexes: List[Pattern] = field(default_factory=list)
     expense_regex: str = None
-    payment_methods_by_prefix_symbol: Dict[str, PaymentMethod] = field(default_factory=dict)
-    payment_methods_by_postfix: Dict[str, PaymentMethod] = field(default_factory=dict)
+    payment_methods_by_prefix_and_postfix: Dict[Tuple[str, str], PaymentMethod] = field(default_factory=dict)
 
     def __post_init__(self):
         for name, pm in self.payment_methods.items():
@@ -101,10 +101,16 @@ class ParserConfig:
             ec.name = name
         for pm in self.payment_methods.values():
             for postfix in pm.postfix_symbols:
-                self.payment_methods_by_postfix[postfix] = pm
+                found_values = re.findall("[a-zA-Z0-9 ]+", postfix)
+                if not found_values:
+                    raise ValueError("Postfix is invalid, it should only contain alphanumeric characters and space. Current postfic: {}".format(postfix))
+                sanitized_postfix = found_values[0]
+                key = (pm.prefix_symbol, sanitized_postfix)
+                if key in self.payment_methods_by_prefix_and_postfix:
+                    payment_methods_with_dupe_key = [self.payment_methods_by_prefix_and_postfix[key], pm]
+                    raise ValueError("Duplicate prefix+postfix key found: {}. Payment methods associated with this key: {}".format(key, payment_methods_with_dupe_key))
+                self.payment_methods_by_prefix_and_postfix[key] = pm
 
-        for pm in self.payment_methods.values():
-            self.payment_methods_by_prefix_symbol[pm.prefix_symbol] = pm
         LOG.info("Initialized parser config")
 
 
@@ -154,6 +160,28 @@ class ParserConfigReader:
         # Try to find missing vars
         self._check_variables()
         self._validate_date_formats(self.config.generic_parser_settings.date_formats)
+        self._validate_regexes()
+
+    def _validate_regexes(self):
+        fields = self.config.generic_parser_settings.expense_format.fields
+        for field in fields.values(): # type: ExpenseField
+            if field.extract_inner_group:
+                if field.type != ExpenseFieldType.REGEX:
+                    raise ValueError("Invalid config. If 'extractInnerGroup' is enabled, field type should be regex. Field object: {}".format(field))
+                elif not (self._ensure_there_is_only_one_regex_group(field.value)):
+                    raise ValueError(
+                        "Invalid config. If 'extractInnerGroup' is enabled, the regex should only have at most one group. Field object: {}".format(
+                            field))
+
+    @staticmethod
+    def _ensure_there_is_only_one_regex_group(regex: str):
+        count_open = regex.count("(")
+        count_close = regex.count(")")
+        if count_open != count_close:
+            return False
+        if count_open > 1 or count_open == 0:
+            return False
+        return True
 
     def _check_variables(self):
         for field_name, field_object in self.config.generic_parser_settings.expense_format.fields.items():
@@ -205,9 +233,21 @@ class ParserConfigReader:
         self.config.expense_regex = final_regex
 
     @staticmethod
-    def _create_regex(group_name, field_object):
-        regex = field_object.value
-        grouped_regex = f"(?P<{group_name}>{regex})"
+    def _create_regex(group_name, field_object: ExpenseField):
+        regex_value = field_object.value
+        if field_object.extract_inner_group:
+            open_idx = regex_value.find('(')
+            close_idx = regex_value.rfind(')')
+            quantifier = regex_value[close_idx+1]
+            if quantifier not in ["*", "?", "+"]:
+                quantifier = ""
+            start = regex_value[:open_idx]
+            end = regex_value[close_idx+1:]
+            group = regex_value[open_idx+1:close_idx] + quantifier
+            grouped_regex = f"(?P<{group_name}>{group})"
+            new_regex_value = f"{start}{grouped_regex}{end}"
+            return new_regex_value
+        grouped_regex = f"(?P<{group_name}>{regex_value})"
         if field_object.optional:
             grouped_regex += "*"
         return grouped_regex
