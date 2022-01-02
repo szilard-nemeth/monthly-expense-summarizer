@@ -7,7 +7,7 @@ from typing import Pattern, Dict, List, Tuple
 
 from pythoncommons.file_utils import FileUtils
 
-from monthlyexpensesummarizer.config import ParserConfig, MandatoryExpenseField
+from monthlyexpensesummarizer.config import ParserConfig, MandatoryExpenseField, PaymentMethod
 
 LOG = logging.getLogger(__name__)
 
@@ -59,16 +59,34 @@ class DiagnosticPrinter:
 @dataclass
 class ParsedExpense:
     payment_method_marker: str
+    payment_method_postfix: str
     amount: int
     title: str
     details: str
     more_details: str
+    payment_method: PaymentMethod or None = None
+
+    def post_init(self, config: ParserConfig):
+        found_prefix = True if self.payment_method_marker in config.payment_methods_by_prefix_symbol else False
+        found_postfix = True if self.payment_method_postfix in config.payment_methods_by_postfix else False
+
+        if not found_prefix:
+            LOG.error("Unrecognized payment method marker for expense: %s", self)
+            self.payment_method = None
+        else:
+            self.payment_method = config.payment_methods_by_prefix_symbol[self.payment_method_marker]
+
+        if not found_postfix:
+            LOG.error("Unrecognized payment method postfix for expense: %s", self)
+            self.payment_method = None
+        else:
+            self.payment_method = config.payment_methods_by_postfix[self.payment_method_postfix]
 
 
 class InputFileParser:
     def __init__(self, config: ParserConfig, diagnostic_config: DiagnosticConfig):
         self.printer = DiagnosticPrinter(diagnostic_config)
-        self.config = config
+        self.config: ParserConfig = config
         self.multi_line_expense_open_chars = InputFileParser._get_multiline_expense_open_chars(config)
         self.multi_line_expense_close_chars = InputFileParser._get_multiline_expense_close_chars(config)
 
@@ -158,11 +176,22 @@ class InputFileParser:
             parsed_expenses.append(self._create_expense_from_match_groups(match))
         return parsed_expenses
 
-    @staticmethod
-    def _create_expense_from_match_groups(match):
+    def _create_expense_from_match_groups(self, match):
         payment_method_marker = match.group(MandatoryExpenseField.PAYMENT_METHOD_MARKER.value)
         amount = match.group(MandatoryExpenseField.AMOUNT.value)
         title = match.group(MandatoryExpenseField.TITLE.value)
         details = match.group(MandatoryExpenseField.DETAILS.value)
         more_details = match.group(MandatoryExpenseField.MORE_DETAILS.value)
-        return ParsedExpense(payment_method_marker, amount, title, details, more_details)
+        payment_method_postfix = match.group(MandatoryExpenseField.PAYMENT_METHOD_POSTFIX.value)
+        parsed_expense = ParsedExpense(payment_method_marker, payment_method_postfix, self._convert_amount_str(amount), title, details, more_details)
+        parsed_expense.post_init(self.config)
+        return parsed_expense
+
+    def _convert_amount_str(self, amount: str) -> int:
+        new_amount = amount
+        sep_chars = self.config.generic_parser_settings.thousands_separator_chars
+        for sep in sep_chars:
+            if sep in amount:
+                new_amount = new_amount.replace(sep, "")
+        return int(new_amount)
+
