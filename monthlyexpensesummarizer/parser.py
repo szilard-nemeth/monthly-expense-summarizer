@@ -7,7 +7,7 @@ from typing import Pattern, Dict, List, Tuple
 
 from pythoncommons.file_utils import FileUtils
 
-from monthlyexpensesummarizer.config import ParserConfig, MandatoryExpenseField, PaymentMethod
+from monthlyexpensesummarizer.config import ParserConfig, MandatoryExpenseField, PaymentMethod, ItemType
 
 LOG = logging.getLogger(__name__)
 
@@ -56,6 +56,7 @@ class DiagnosticPrinter:
             LOG.debug(info_type.log_pattern, pprint.pformat(obj))
 
 
+# TODO Rename to ParsedItem?
 @dataclass
 class ParsedExpense:
     payment_method_marker: str
@@ -65,15 +66,22 @@ class ParsedExpense:
     details: str
     more_details: str
     payment_method: PaymentMethod or None = None
+    item_type: ItemType = None
 
     def post_init(self, config: ParserConfig):
         payment_method_key = (self.payment_method_marker, self.payment_method_postfix)
 
-        if payment_method_key not in config.payment_methods_by_prefix_and_postfix:
+        if self.payment_method_marker == config.generic_parser_settings.income_settings.symbol:
+            self.item_type = ItemType.INCOME
+        elif self.payment_method_marker in config.generic_parser_settings.special_item_prefixes:
+            self.item_type = ItemType.SPECIAL
+        elif payment_method_key not in config.payment_methods_by_prefix_and_postfix:
             LOG.error("Unrecognized payment method for expense: %s", self)
             self.payment_method = None
+            self.item_type = ItemType.EXPENSE
         else:
             self.payment_method = config.payment_methods_by_prefix_and_postfix[payment_method_key]
+            self.item_type = ItemType.EXPENSE
 
 
 class InputFileParser:
