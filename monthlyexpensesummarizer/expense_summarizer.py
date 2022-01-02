@@ -8,6 +8,8 @@ from pythoncommons.file_utils import FileUtils, FindResultType
 from pythoncommons.logging_setup import SimpleLoggingSetupConfig, SimpleLoggingSetup
 from pythoncommons.os_utils import OsUtils
 from pythoncommons.project_utils import ProjectRootDeterminationStrategy, ProjectUtils, SimpleProjectUtils
+
+from monthlyexpensesummarizer.aggregator import Aggregator
 from monthlyexpensesummarizer.argparser import ArgParser
 from monthlyexpensesummarizer.common import MonthlyExpenseSummarizerEnvVar
 from monthlyexpensesummarizer.constants import MONTHLY_EXPENSE_SUMMARIZER_MODULE_NAME, REPO_ROOT_DIRNAME
@@ -70,11 +72,12 @@ class MonthlyExpenseSummarizer:
         sample_project_filename = os.path.join(config_samples_dir, "parserconfig.json")
         input_filename = os.path.join(input_files_dir, "expenses-202108")
         config_reader: ParserConfigReader = ParserConfigReader.read_from_file(filename=sample_project_filename)
+        LOG.info("Read project config: %s", pformat(config_reader.config))
         parser = InputFileParser(config_reader.config, DiagnosticConfig(print_date_lines=True,
                                                                         print_multi_line_expenses=True,
                                                                         print_expense_line_ranges=True))
         parser.parse(input_filename)
-        LOG.info("Read project config: %s", pformat(config_reader.config))
+        Aggregator.aggregate(parser.parsed_expenses)
 
 
 if __name__ == '__main__':
