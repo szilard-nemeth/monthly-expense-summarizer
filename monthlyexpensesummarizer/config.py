@@ -79,7 +79,6 @@ class GenericParserSettings:
     mandatory_postfix_for_payment_methods: List[str] = field(default_factory=list)
     special_item_prefixes: List[str] = field(default_factory=list)
     thousands_separator_chars: List[str] = field(default_factory=list)
-    expense_details_separator_strings: List[str] = field(default_factory=list)
     expense_more_details_separator_strings: List[str] = field(default_factory=list)
     expense_more_details_close_strings: List[str] = field(default_factory=list)
     date_formats: List[str] = field(default_factory=list) # https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes
