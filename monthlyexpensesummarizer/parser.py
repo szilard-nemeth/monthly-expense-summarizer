@@ -71,17 +71,22 @@ class ParsedExpense:
     def post_init(self, config: ParserConfig):
         payment_method_key = (self.payment_method_marker, self.payment_method_postfix)
 
+        found_unrecognized_payment_method = False
         if self.payment_method_marker == config.generic_parser_settings.income_settings.symbol:
             self.item_type = ItemType.INCOME
         elif self.payment_method_marker in config.generic_parser_settings.special_item_prefixes:
             self.item_type = ItemType.SPECIAL
         elif payment_method_key not in config.payment_methods_by_prefix_and_postfix:
+            found_unrecognized_payment_method = True
             LOG.error("Unrecognized payment method for expense: %s", self)
             self.payment_method = None
             self.item_type = ItemType.EXPENSE
         else:
             self.payment_method = config.payment_methods_by_prefix_and_postfix[payment_method_key]
             self.item_type = ItemType.EXPENSE
+
+        if config.generic_parser_settings.fail_on_unrecognized_payments and found_unrecognized_payment_method:
+            raise ValueError("Found unrecognized payment methods, stopping execution as per config setting!")
 
 
 class InputFileParser:
@@ -123,15 +128,13 @@ class InputFileParser:
 
     @staticmethod
     def _get_multiline_expense_open_chars(config):
-        results_list = [config.generic_parser_settings.expense_details_separator_strings,
-                        config.generic_parser_settings.expense_more_details_separator_strings]
+        results_list = [config.generic_parser_settings.expense_more_details_separator_strings]
         chars = set().union(*results_list)
         return chars
 
     @staticmethod
     def _get_multiline_expense_close_chars(config):
-        results_list = [config.generic_parser_settings.expense_details_separator_strings,
-                        config.generic_parser_settings.expense_more_details_close_strings]
+        results_list = [config.generic_parser_settings.expense_more_details_close_strings]
         chars = set().union(*results_list)
         return chars
 

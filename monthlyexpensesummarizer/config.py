@@ -76,6 +76,7 @@ class GenericParserSettings:
     income_settings: IncomeSettings
     expense_format: ExpenseFormat
     more_details_spans_to_multiple_lines: bool
+    fail_on_unrecognized_payments: bool
     mandatory_postfix_for_payment_methods: List[str] = field(default_factory=list)
     special_item_prefixes: List[str] = field(default_factory=list)
     thousands_separator_chars: List[str] = field(default_factory=list)
