@@ -1,5 +1,5 @@
 .DS_Store
 .idea
 venv
-input-files
-config_samples
+parser_config
+expense_files
