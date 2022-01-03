@@ -77,7 +77,8 @@ class MonthlyExpenseSummarizer:
                                                                         print_multi_line_expenses=True,
                                                                         print_expense_line_ranges=True))
         parser.parse(input_filename)
-        Aggregator.aggregate(parser.parsed_expenses)
+        aggregator = Aggregator()
+        aggregator.aggregate(parser.parsed_expenses)
 
 
 if __name__ == '__main__':

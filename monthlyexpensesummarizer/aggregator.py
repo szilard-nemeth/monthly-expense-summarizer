@@ -37,7 +37,7 @@ class Aggregator:
         LOG.info("Listing aggregates...")
         for payment_method, amount in self.by_payment_method.items():
             LOG.info("Aggregate expenses for payment method '%s': %d", payment_method, amount)
-            LOG.info("Stringified aggregate expenses for payment method '%s': %s", payment_method, by_payment_method_stringified[payment_method])
+            LOG.info("Stringified aggregate expenses for payment method '%s': %s", payment_method, self.by_payment_method_stringified[payment_method])
         for day, amount in self.by_day.items():
             LOG.info("Aggregate expenses for day '%s': %d", day, amount)
         for tx_type, amount in self.by_transaction_type.items():
