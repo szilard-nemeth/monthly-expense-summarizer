@@ -213,7 +213,7 @@ class ParserConfigReader:
                 available_vars = self.config.generic_parser_settings.expense_format.variables
                 diff = set(vars_set).difference(set(available_vars.keys()))
                 if diff:
-                    raise ValueError("Unkown variables '{}' in {}: {}. Available variables: {}"
+                    raise ValueError("Unknown variables '{}' in {}: {}. Available variables: {}"
                                      .format(diff, field_name, field_object.value, available_vars.keys()))
                 self._resolve_variables(available_vars, field_name, field_object, vars_set)
 
