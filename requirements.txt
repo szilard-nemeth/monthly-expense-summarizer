@@ -1,2 +1,3 @@
 git+https://github.com/szilard-nemeth/python-commons.git
 dataclasses-json
+pytest~=6.2.3

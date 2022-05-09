@@ -5,9 +5,10 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Pattern, Dict, List, Tuple
 
+from pythoncommons.file_parser import ParserConfigReader, GenericParserConfig, RegexGenerator
 from pythoncommons.file_utils import FileUtils
 
-from monthlyexpensesummarizer.config import ParserConfig, MandatoryExpenseField, PaymentMethod, ItemType
+from monthlyexpensesummarizer.config import ParserConfig, PaymentMethod, ItemType
 
 LOG = logging.getLogger(__name__)
 
@@ -66,16 +67,18 @@ class ParsedExpense:
     title: str
     details: str
     more_details: str
+    amount_title_sep: str
     payment_method: PaymentMethod or None = None
     item_type: ItemType = None
+
 
     def post_init(self, config: ParserConfig):
         payment_method_key = (self.payment_method_marker, self.payment_method_postfix)
 
         found_unrecognized_payment_method = False
-        if self.payment_method_marker == config.generic_parser_settings.income_settings.symbol:
+        if self.payment_method_marker == config.parser_settings.income_settings.symbol:
             self.item_type = ItemType.INCOME
-        elif self.payment_method_marker in config.generic_parser_settings.special_item_prefixes:
+        elif self.payment_method_marker in config.parser_settings.special_item_prefixes:
             self.item_type = ItemType.SPECIAL
         elif payment_method_key not in config.payment_methods_by_prefix_and_postfix:
             found_unrecognized_payment_method = True
@@ -86,16 +89,19 @@ class ParsedExpense:
             self.payment_method = config.payment_methods_by_prefix_and_postfix[payment_method_key]
             self.item_type = ItemType.EXPENSE
 
-        if config.generic_parser_settings.fail_on_unrecognized_payments and found_unrecognized_payment_method:
+        if config.parser_settings.fail_on_unrecognized_payments and found_unrecognized_payment_method:
             raise ValueError("Found unrecognized payment methods, stopping execution as per config setting!")
 
 
 class InputFileParser:
-    def __init__(self, config: ParserConfig, diagnostic_config: DiagnosticConfig):
+    def __init__(self, config_reader: ParserConfigReader, diagnostic_config: DiagnosticConfig):
         self.printer = DiagnosticPrinter(diagnostic_config)
-        self.config: ParserConfig = config
-        self.multi_line_expense_open_chars = InputFileParser._get_multiline_expense_open_chars(config)
-        self.multi_line_expense_close_chars = InputFileParser._get_multiline_expense_close_chars(config)
+        self.extended_config: ParserConfig = config_reader.extended_config
+        self.generic_parser_config: GenericParserConfig = config_reader.config
+        self.extended_config.expense_regex = RegexGenerator.create_final_regex(self.generic_parser_config)
+
+        self.multi_line_expense_open_chars = InputFileParser._get_multiline_expense_open_chars(self.extended_config)
+        self.multi_line_expense_close_chars = InputFileParser._get_multiline_expense_close_chars(self.extended_config)
 
         self.multiline_start_idx = -1
         self.multiline_end_idx = -1
@@ -120,7 +126,7 @@ class InputFileParser:
         self.printer.pretty_print(self.parsed_expenses, InfoType.PARSED_EXPENSES)
 
     def _match_date_line_regexes(self, line):
-        for date_regex in self.config.date_regexes:  # type: Pattern
+        for date_regex in self.generic_parser_config.date_regexes:  # type: Pattern
             match = date_regex.match(line)
             if match:
                 self.printer.print_line(line, InfoType.DATE_LINE)
@@ -129,13 +135,13 @@ class InputFileParser:
 
     @staticmethod
     def _get_multiline_expense_open_chars(config):
-        results_list = [config.generic_parser_settings.expense_more_details_separator_strings]
+        results_list = [config.parser_settings.expense_more_details_separator_strings]
         chars = set().union(*results_list)
         return chars
 
     @staticmethod
     def _get_multiline_expense_close_chars(config):
-        results_list = [config.generic_parser_settings.expense_more_details_close_strings]
+        results_list = [config.parser_settings.expense_more_details_close_strings]
         chars = set().union(*results_list)
         return chars
 
@@ -179,7 +185,7 @@ class InputFileParser:
         parsed_expenses: List[ParsedExpense] = []
         for list_of_lines, date in self.lines_by_ranges:
             lines = "\n".join(list_of_lines)
-            match = re.match(self.config.expense_regex, lines, re.MULTILINE)
+            match = re.match(self.extended_config.expense_regex, lines, re.MULTILINE)
             if not match:
                 LOG.error("Expense not matched: %s", lines)
                 continue
@@ -188,19 +194,19 @@ class InputFileParser:
         return parsed_expenses
 
     def _create_expense_from_match_groups(self, match, date: str):
-        payment_method_marker = match.group(MandatoryExpenseField.PAYMENT_METHOD_MARKER.value)
-        amount = match.group(MandatoryExpenseField.AMOUNT.value)
-        title = match.group(MandatoryExpenseField.TITLE.value)
-        details = match.group(MandatoryExpenseField.DETAILS.value)
-        more_details = match.group(MandatoryExpenseField.MORE_DETAILS.value)
-        payment_method_postfix = match.group(MandatoryExpenseField.PAYMENT_METHOD_POSTFIX.value)
-        parsed_expense = ParsedExpense(date, payment_method_marker, payment_method_postfix, self._convert_amount_str(amount), title, details, more_details)
-        parsed_expense.post_init(self.config)
+        # https://stackoverflow.com/a/587518/1106893
+
+        prop_dict = {"date": date}
+        for mandatory_field in self.generic_parser_config.generic_parser_settings.parsed_block_format.mandatory_fields:
+            prop_dict[mandatory_field.lower()] = match.group(mandatory_field)
+            # TODO convert amount with self._convert_amount_str(amount)
+        parsed_expense = ParsedExpense(**prop_dict)
+        parsed_expense.post_init(self.extended_config)
         return parsed_expense
 
     def _convert_amount_str(self, amount: str) -> int:
         new_amount = amount
-        sep_chars = self.config.generic_parser_settings.thousands_separator_chars
+        sep_chars = self.extended_config.parser_settings.thousands_separator_chars
         for sep in sep_chars:
             if sep in amount:
                 new_amount = new_amount.replace(sep, "")

@@ -14,6 +14,8 @@ TEST_DIR_NAME = "somedir"
 
 
 class XyzTest(unittest.TestCase):
+    repo_root_dir = None
+
     @classmethod
     def setUpClass(cls):
         cls._ensure_env_var_is_present("test_env_var")
@@ -62,13 +64,6 @@ class XyzTest(unittest.TestCase):
             )
         cls.repo_root_dir = found_dirs[0]
         cls.some_other_dir = FileUtils.join_path(cls.repo_root_dir, "some-other-dir")
-
-    @staticmethod
-    def find_cdsw_runner_script(parent_dir):
-        results = FileUtils.search_files(parent_dir, CDSW_RUNNER_PY)
-        if not results:
-            raise ValueError(f"Expected to find file: {CDSW_RUNNER_PY}")
-        return results[0]
 
     def test_x(self):
         pass

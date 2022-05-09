@@ -4,6 +4,7 @@ import time
 from pprint import pformat
 
 from pythoncommons.constants import ExecutionMode
+from pythoncommons.file_parser import ParserConfigReader
 from pythoncommons.file_utils import FileUtils, FindResultType
 from pythoncommons.logging_setup import SimpleLoggingSetupConfig, SimpleLoggingSetup
 from pythoncommons.os_utils import OsUtils
@@ -12,8 +13,8 @@ from pythoncommons.project_utils import ProjectRootDeterminationStrategy, Projec
 from monthlyexpensesummarizer.aggregator import Aggregator
 from monthlyexpensesummarizer.argparser import ArgParser
 from monthlyexpensesummarizer.common import MonthlyExpenseSummarizerEnvVar
+from monthlyexpensesummarizer.config import ParserConfig
 from monthlyexpensesummarizer.constants import MONTHLY_EXPENSE_SUMMARIZER_MODULE_NAME, REPO_ROOT_DIRNAME
-from monthlyexpensesummarizer.config import ParserConfigReader
 from monthlyexpensesummarizer.parser import InputFileParser, DiagnosticConfig
 
 LOG = logging.getLogger(__name__)
@@ -71,14 +72,25 @@ class MonthlyExpenseSummarizer:
         )
         sample_project_filename = os.path.join(config_samples_dir, "parserconfig.json")
         input_filename = os.path.join(input_files_dir, "expenses-202108")
-        config_reader: ParserConfigReader = ParserConfigReader.read_from_file(filename=sample_project_filename)
+        config_reader: ParserConfigReader = ParserConfigReader.read_from_file(filename=sample_project_filename,
+                                                                              data_class=ParserConfig)
+        MonthlyExpenseSummarizer._validate_mandatory_postfix_payment_methods(config_reader)
+
         LOG.info("Read project config: %s", pformat(config_reader.config))
-        parser = InputFileParser(config_reader.config, DiagnosticConfig(print_date_lines=True,
-                                                                        print_multi_line_expenses=True,
-                                                                        print_expense_line_ranges=True))
+        parser = InputFileParser(config_reader, DiagnosticConfig(print_date_lines=True,
+                                                                 print_multi_line_expenses=True,
+                                                                 print_expense_line_ranges=True))
         parser.parse(input_filename)
         aggregator = Aggregator()
         aggregator.aggregate(parser.parsed_expenses)
+
+    @staticmethod
+    def _validate_mandatory_postfix_payment_methods(config_reader: ParserConfigReader):
+        found_mandatory_pm_names = set([pm_name for pm_name in config_reader.extended_config.parser_settings.mandatory_postfix_for_payment_methods])
+        available_payment_methods = set(config_reader.extended_config.payment_methods)
+        diff = found_mandatory_pm_names.difference(available_payment_methods)
+        if diff:
+            raise ValueError("Found invalid payment method names specified in 'mandatoryPostfixForPaymentMethods': {}".format(diff))
 
 
 if __name__ == '__main__':
