@@ -93,6 +93,7 @@ class ParsedExpense:
             raise ValueError("Found unrecognized payment methods, stopping execution as per config setting!")
 
 
+# TODO Move as much parser functionality as possible to pythoncommons / file_parser.py
 class InputFileParser:
     def __init__(self, config_reader: ParserConfigReader, diagnostic_config: DiagnosticConfig):
         self.printer = DiagnosticPrinter(diagnostic_config)
@@ -108,7 +109,6 @@ class InputFileParser:
         self.expense_line_ranges: List[Tuple[int, int]] = []
         self.date_lines: List[int] = []
         self.inside_multiline = False
-        self.parsed_expenses: List[ParsedExpense] = []
 
     def parse(self, file: str):
         file_contents = FileUtils.read_file(file)
@@ -122,8 +122,9 @@ class InputFileParser:
                 if line_range:
                     self.expense_line_ranges.append(line_range)
 
-        self.parsed_expenses = self._process_line_ranges()
-        self.printer.pretty_print(self.parsed_expenses, InfoType.PARSED_EXPENSES)
+        parsed_expenses = self._process_line_ranges()
+        self.printer.pretty_print(parsed_expenses, InfoType.PARSED_EXPENSES)
+        return parsed_expenses
 
     def _match_date_line_regexes(self, line):
         for date_regex in self.generic_parser_config.date_regexes:  # type: Pattern
@@ -167,6 +168,20 @@ class InputFileParser:
             self.printer.print_line(line_range, InfoType.LINE_RANGE)
             return line_range
 
+    def _process_line_ranges(self):
+        self.lines_by_ranges: List[Tuple[List[str], str]] = self._get_lines_by_ranges()
+
+        parsed_expenses: List[ParsedExpense] = []
+        for list_of_lines, date in self.lines_by_ranges:
+            lines = "\n".join(list_of_lines)
+            match = re.match(self.extended_config.expense_regex, lines, re.MULTILINE)
+            if not match:
+                LOG.error("Expense not matched: %s", lines)
+                continue
+            self.printer.print_line(match, InfoType.MATCH_OBJECT)
+            parsed_expenses.append(self._parse_expense_obj_from_match_groups(match, date))
+        return parsed_expenses
+
     def _get_lines_by_ranges(self):
         result: List[Tuple[List[str], str]] = []
         curr_date_idx = 0
@@ -179,21 +194,7 @@ class InputFileParser:
             result.append((list_of_lines, date))
         return result
 
-    def _process_line_ranges(self):
-        self.lines_by_ranges: List[Tuple[List[str], str]] = self._get_lines_by_ranges()
-
-        parsed_expenses: List[ParsedExpense] = []
-        for list_of_lines, date in self.lines_by_ranges:
-            lines = "\n".join(list_of_lines)
-            match = re.match(self.extended_config.expense_regex, lines, re.MULTILINE)
-            if not match:
-                LOG.error("Expense not matched: %s", lines)
-                continue
-            self.printer.print_line(match, InfoType.MATCH_OBJECT)
-            parsed_expenses.append(self._create_expense_from_match_groups(match, date))
-        return parsed_expenses
-
-    def _create_expense_from_match_groups(self, match, date: str):
+    def _parse_expense_obj_from_match_groups(self, match, date: str):
         # https://stackoverflow.com/a/587518/1106893
 
         prop_dict = {"date": date}

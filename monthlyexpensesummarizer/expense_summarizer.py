@@ -80,9 +80,9 @@ class MonthlyExpenseSummarizer:
         parser = InputFileParser(config_reader, DiagnosticConfig(print_date_lines=True,
                                                                  print_multi_line_expenses=True,
                                                                  print_expense_line_ranges=True))
-        parser.parse(input_filename)
+        parsed_expenses = parser.parse(input_filename)
         aggregator = Aggregator()
-        aggregator.aggregate(parser.parsed_expenses)
+        aggregator.aggregate(parsed_expenses)
 
     @staticmethod
     def _validate_mandatory_postfix_payment_methods(config_reader: ParserConfigReader):
