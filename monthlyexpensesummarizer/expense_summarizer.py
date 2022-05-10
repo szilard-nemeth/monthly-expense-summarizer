@@ -15,7 +15,7 @@ from monthlyexpensesummarizer.argparser import ArgParser
 from monthlyexpensesummarizer.common import MonthlyExpenseSummarizerEnvVar
 from monthlyexpensesummarizer.config import ParserConfig
 from monthlyexpensesummarizer.constants import MONTHLY_EXPENSE_SUMMARIZER_MODULE_NAME, REPO_ROOT_DIRNAME
-from monthlyexpensesummarizer.parser import InputFileParser, DiagnosticConfig
+from monthlyexpensesummarizer.parser import ExpenseInputFileParser, DiagnosticConfig
 
 LOG = logging.getLogger(__name__)
 
@@ -77,9 +77,9 @@ class MonthlyExpenseSummarizer:
         MonthlyExpenseSummarizer._validate_mandatory_postfix_payment_methods(config_reader)
 
         LOG.info("Read project config: %s", pformat(config_reader.config))
-        parser = InputFileParser(config_reader, DiagnosticConfig(print_date_lines=True,
-                                                                 print_multi_line_expenses=True,
-                                                                 print_expense_line_ranges=True))
+        parser = ExpenseInputFileParser(config_reader, DiagnosticConfig(print_date_lines=True,
+                                                                        print_multi_line_expenses=True,
+                                                                        print_expense_line_ranges=True))
         parsed_expenses = parser.parse(input_filename)
         aggregator = Aggregator()
         aggregator.aggregate(parsed_expenses)

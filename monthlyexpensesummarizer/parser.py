@@ -74,7 +74,6 @@ class ParsedExpense:
     payment_method: PaymentMethod or None = None
     item_type: ItemType = None
 
-
     def post_init(self, config: ParserConfig):
         payment_method_key = (self.payment_method_marker, self.payment_method_postfix)
 
@@ -97,45 +96,44 @@ class ParsedExpense:
 
 
 # TODO Move as much parser functionality as possible to pythoncommons / file_parser.py
-class InputFileParser:
+class ExpenseInputFileParser:
     def __init__(self, config_reader: ParserConfigReader, diagnostic_config: DiagnosticConfig):
         self.printer = DiagnosticPrinter(diagnostic_config)
         self.extended_config: ParserConfig = config_reader.extended_config
         self.generic_parser_config: GenericParserConfig = config_reader.config
         self.extended_config.expense_regex = RegexGenerator.create_final_regex(self.generic_parser_config)
 
-        self.multi_line_expense_open_chars = InputFileParser._get_multiline_expense_open_chars(self.extended_config)
-        self.multi_line_expense_close_chars = InputFileParser._get_multiline_expense_close_chars(self.extended_config)
+        self.multi_line_expense_open_chars = ExpenseInputFileParser._get_multiline_expense_open_chars(self.extended_config)
+        self.multi_line_expense_close_chars = ExpenseInputFileParser._get_multiline_expense_close_chars(self.extended_config)
 
         self.multiline_start_idx = -1
         self.multiline_end_idx = -1
-        self.expense_line_ranges: List[Tuple[int, int]] = []
-        self.date_lines: List[int] = []
+        self.line_ranges_of_blocks: List[Tuple[int, int]] = []
+        self.excluded_lines: List[int] = []
         self.inside_multiline = False
 
     def parse(self, file: str):
         file_contents = FileUtils.read_file(file)
         self.lines_of_file = file_contents.split("\n")
         for idx, line in enumerate(self.lines_of_file):
-            match = self._match_date_line_regexes(line)
-            if match:
-                self.date_lines.append(idx)
+            if self._determine_if_line_excluded(line):
+                self.excluded_lines.append(idx)
             else:
-                line_range = self._get_line_range_of_expense(line, idx)
+                line_range = self._get_line_ranges_of_blocks(line, idx)
                 if line_range not in (MULTI_LINE_EXPENSE_CONTINUED, MULTI_LINE_EXPENSE_HEADER):
-                    self.expense_line_ranges.append(line_range)
+                    self.line_ranges_of_blocks.append(line_range)
 
         parsed_expenses = self._process_line_ranges()
         self.printer.pretty_print(parsed_expenses, DiagnosticInfoType.PARSED_EXPENSES)
         return parsed_expenses
 
-    def _match_date_line_regexes(self, line):
+    def _determine_if_line_excluded(self, line) -> bool:
         for date_regex in self.generic_parser_config.date_regexes:  # type: Pattern
             match = date_regex.match(line)
             if match:
                 self.printer.print_line(line, DiagnosticInfoType.DATE_LINE)
-                return match
-        return None
+                return True
+        return False
 
     @staticmethod
     def _get_multiline_expense_open_chars(config):
@@ -149,7 +147,7 @@ class InputFileParser:
         chars = set().union(*results_list)
         return chars
 
-    def _get_line_range_of_expense(self, line, idx: int) -> Tuple[int, int]:
+    def _get_line_ranges_of_blocks(self, line, idx: int) -> Tuple[int, int]:
         multi_line_opened: bool = any([char in line for char in self.multi_line_expense_open_chars])
         multi_line_closed: bool = any([char in line for char in self.multi_line_expense_close_chars])
         if multi_line_opened and not self.inside_multiline:
@@ -164,9 +162,8 @@ class InputFileParser:
             self.printer.print_line(line_range, DiagnosticInfoType.LINE_RANGE)
             return line_range
         elif not multi_line_closed and self.inside_multiline:
-            # Multi line expense continued
             return MULTI_LINE_EXPENSE_CONTINUED
-        elif idx not in self.date_lines and (line and not line.isspace()):
+        elif idx not in self.excluded_lines and (line and not line.isspace()):
             # Single line expense
             line_range = (idx, idx)
             self.printer.print_line(line_range, DiagnosticInfoType.LINE_RANGE)
@@ -189,11 +186,11 @@ class InputFileParser:
     def _get_lines_by_ranges(self):
         result: List[Tuple[List[str], str]] = []
         curr_date_idx = 0
-        for range in self.expense_line_ranges:
+        for range in self.line_ranges_of_blocks:
             list_of_lines = self.lines_of_file[range[0]:range[1] + 1]
-            if (len(self.date_lines) - 1) != curr_date_idx and range[1] > self.date_lines[curr_date_idx + 1]:
+            if (len(self.excluded_lines) - 1) != curr_date_idx and range[1] > self.excluded_lines[curr_date_idx + 1]:
                 curr_date_idx += 1
-            date_idx = self.date_lines[curr_date_idx]
+            date_idx = self.excluded_lines[curr_date_idx]
             date = self.lines_of_file[date_idx]
             result.append((list_of_lines, date))
         return result
