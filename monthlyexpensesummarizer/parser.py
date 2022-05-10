@@ -10,6 +10,9 @@ from pythoncommons.file_utils import FileUtils
 
 from monthlyexpensesummarizer.config import ParserConfig, PaymentMethod, ItemType
 
+MULTI_LINE_EXPENSE_CONTINUED = (-1, -1)
+MULTI_LINE_EXPENSE_HEADER = (-2, -2)
+
 LOG = logging.getLogger(__name__)
 
 
@@ -119,7 +122,7 @@ class InputFileParser:
                 self.date_lines.append(idx)
             else:
                 line_range = self._get_line_range_of_expense(line, idx)
-                if line_range:
+                if line_range not in (MULTI_LINE_EXPENSE_CONTINUED, MULTI_LINE_EXPENSE_HEADER):
                     self.expense_line_ranges.append(line_range)
 
         parsed_expenses = self._process_line_ranges()
@@ -146,22 +149,23 @@ class InputFileParser:
         chars = set().union(*results_list)
         return chars
 
-    def _get_line_range_of_expense(self, line, idx: int):
-        multi_line_opened = any([c in line for c in self.multi_line_expense_open_chars])
-        multi_line_closed = any([c in line for c in self.multi_line_expense_close_chars])
-        if not self.inside_multiline and multi_line_opened:
+    def _get_line_range_of_expense(self, line, idx: int) -> Tuple[int, int]:
+        multi_line_opened: bool = any([char in line for char in self.multi_line_expense_open_chars])
+        multi_line_closed: bool = any([char in line for char in self.multi_line_expense_close_chars])
+        if multi_line_opened and not self.inside_multiline:
             self.inside_multiline = True
             self.multiline_start_idx = idx
             self.printer.print_line(line, InfoType.MULTI_LINE_EXPENSE)
-        elif self.inside_multiline and multi_line_closed:
+            return MULTI_LINE_EXPENSE_HEADER
+        elif multi_line_closed and self.inside_multiline:
+            self.inside_multiline = False
             self.multiline_end_idx = idx
             line_range = (self.multiline_start_idx, self.multiline_end_idx)
             self.printer.print_line(line_range, InfoType.LINE_RANGE)
-            self.inside_multiline = False
             return line_range
-        elif self.inside_multiline and not multi_line_closed:
+        elif not multi_line_closed and self.inside_multiline:
             # Multi line expense continued
-            return
+            return MULTI_LINE_EXPENSE_CONTINUED
         elif idx not in self.date_lines and (line and not line.isspace()):
             # Single line expense
             line_range = (idx, idx)
