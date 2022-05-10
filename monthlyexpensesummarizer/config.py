@@ -63,9 +63,6 @@ class ParserConfig:
     date_regexes: List[Pattern] = field(default_factory=list)
     payment_methods_by_prefix_and_postfix: Dict[Tuple[str, Union[str, None]], PaymentMethod] = field(default_factory=dict)
 
-    # Dynamic properties
-    expense_regex: str = None
-
     def __post_init__(self):
         for name, pm in self.payment_methods.items():
             pm.name = name

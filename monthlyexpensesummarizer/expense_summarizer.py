@@ -4,18 +4,18 @@ import time
 from pprint import pformat
 
 from pythoncommons.constants import ExecutionMode
-from pythoncommons.file_parser import ParserConfigReader
 from pythoncommons.file_utils import FileUtils, FindResultType
 from pythoncommons.logging_setup import SimpleLoggingSetupConfig, SimpleLoggingSetup
 from pythoncommons.os_utils import OsUtils
 from pythoncommons.project_utils import ProjectRootDeterminationStrategy, ProjectUtils, SimpleProjectUtils
+from pythoncommons.regex_utils import ParserConfigReader
 
 from monthlyexpensesummarizer.aggregator import Aggregator
 from monthlyexpensesummarizer.argparser import ArgParser
 from monthlyexpensesummarizer.common import MonthlyExpenseSummarizerEnvVar
 from monthlyexpensesummarizer.config import ParserConfig
 from monthlyexpensesummarizer.constants import MONTHLY_EXPENSE_SUMMARIZER_MODULE_NAME, REPO_ROOT_DIRNAME
-from monthlyexpensesummarizer.parser import ExpenseInputFileParser, DiagnosticConfig
+from monthlyexpensesummarizer.parser import ExpenseInputFileParser
 
 LOG = logging.getLogger(__name__)
 
@@ -77,9 +77,7 @@ class MonthlyExpenseSummarizer:
         MonthlyExpenseSummarizer._validate_mandatory_postfix_payment_methods(config_reader)
 
         LOG.info("Read project config: %s", pformat(config_reader.config))
-        parser = ExpenseInputFileParser(config_reader, DiagnosticConfig(print_date_lines=True,
-                                                                        print_multi_line_expenses=True,
-                                                                        print_expense_line_ranges=True))
+        parser = ExpenseInputFileParser(config_reader)
         parsed_expenses = parser.parse(input_filename)
         aggregator = Aggregator()
         aggregator.aggregate(parsed_expenses)
