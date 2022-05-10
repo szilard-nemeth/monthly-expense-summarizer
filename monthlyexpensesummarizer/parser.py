@@ -16,7 +16,7 @@ MULTI_LINE_EXPENSE_HEADER = (-2, -2)
 LOG = logging.getLogger(__name__)
 
 
-class InfoType(Enum):
+class DiagnosticInfoType(Enum):
     PARSED_EXPENSES = ("PARSED_EXPENSES", "Parsed expenses: %s")
     MATCH_OBJECT = ("MATCH_OBJECT", "Match object: %s")
     MULTI_LINE_EXPENSE = ("MULTI_LINE_EXPENSE", "Found multi-line expense: %s")
@@ -38,23 +38,23 @@ class DiagnosticConfig:
         self.print_date_lines = print_date_lines
         self.print_multi_line_expenses = print_multi_line_expenses
         self.print_expense_line_ranges = print_expense_line_ranges
-        self.conf_dict: Dict[InfoType, bool] = {InfoType.MULTI_LINE_EXPENSE: self.print_multi_line_expenses,
-                                                InfoType.DATE_LINE: self.print_date_lines,
-                                                InfoType.LINE_RANGE: self.print_expense_line_ranges,
-                                                InfoType.MATCH_OBJECT: self.print_match_objs,
-                                                InfoType.PARSED_EXPENSES: self.print_parsed_expenses}
+        self.conf_dict: Dict[DiagnosticInfoType, bool] = {DiagnosticInfoType.MULTI_LINE_EXPENSE: self.print_multi_line_expenses,
+                                                          DiagnosticInfoType.DATE_LINE: self.print_date_lines,
+                                                          DiagnosticInfoType.LINE_RANGE: self.print_expense_line_ranges,
+                                                          DiagnosticInfoType.MATCH_OBJECT: self.print_match_objs,
+                                                          DiagnosticInfoType.PARSED_EXPENSES: self.print_parsed_expenses}
 
 
 class DiagnosticPrinter:
     def __init__(self, diagnostic_config: DiagnosticConfig):
         self.diagnostic_config = diagnostic_config
 
-    def print_line(self, line, info_type: InfoType):
+    def print_line(self, line, info_type: DiagnosticInfoType):
         enabled = self.diagnostic_config.conf_dict[info_type]
         if enabled:
             LOG.debug(info_type.log_pattern, line)
 
-    def pretty_print(self, obj, info_type: InfoType):
+    def pretty_print(self, obj, info_type: DiagnosticInfoType):
         enabled = self.diagnostic_config.conf_dict[info_type]
         if enabled:
             LOG.debug(info_type.log_pattern, pprint.pformat(obj))
@@ -126,14 +126,14 @@ class InputFileParser:
                     self.expense_line_ranges.append(line_range)
 
         parsed_expenses = self._process_line_ranges()
-        self.printer.pretty_print(parsed_expenses, InfoType.PARSED_EXPENSES)
+        self.printer.pretty_print(parsed_expenses, DiagnosticInfoType.PARSED_EXPENSES)
         return parsed_expenses
 
     def _match_date_line_regexes(self, line):
         for date_regex in self.generic_parser_config.date_regexes:  # type: Pattern
             match = date_regex.match(line)
             if match:
-                self.printer.print_line(line, InfoType.DATE_LINE)
+                self.printer.print_line(line, DiagnosticInfoType.DATE_LINE)
                 return match
         return None
 
@@ -155,13 +155,13 @@ class InputFileParser:
         if multi_line_opened and not self.inside_multiline:
             self.inside_multiline = True
             self.multiline_start_idx = idx
-            self.printer.print_line(line, InfoType.MULTI_LINE_EXPENSE)
+            self.printer.print_line(line, DiagnosticInfoType.MULTI_LINE_EXPENSE)
             return MULTI_LINE_EXPENSE_HEADER
         elif multi_line_closed and self.inside_multiline:
             self.inside_multiline = False
             self.multiline_end_idx = idx
             line_range = (self.multiline_start_idx, self.multiline_end_idx)
-            self.printer.print_line(line_range, InfoType.LINE_RANGE)
+            self.printer.print_line(line_range, DiagnosticInfoType.LINE_RANGE)
             return line_range
         elif not multi_line_closed and self.inside_multiline:
             # Multi line expense continued
@@ -169,7 +169,7 @@ class InputFileParser:
         elif idx not in self.date_lines and (line and not line.isspace()):
             # Single line expense
             line_range = (idx, idx)
-            self.printer.print_line(line_range, InfoType.LINE_RANGE)
+            self.printer.print_line(line_range, DiagnosticInfoType.LINE_RANGE)
             return line_range
 
     def _process_line_ranges(self):
@@ -182,7 +182,7 @@ class InputFileParser:
             if not match:
                 LOG.error("Expense not matched: %s", lines)
                 continue
-            self.printer.print_line(match, InfoType.MATCH_OBJECT)
+            self.printer.print_line(match, DiagnosticInfoType.MATCH_OBJECT)
             parsed_expenses.append(self._parse_expense_obj_from_match_groups(match, date))
         return parsed_expenses
 
