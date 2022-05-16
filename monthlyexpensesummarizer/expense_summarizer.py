@@ -4,11 +4,11 @@ import time
 from pprint import pformat
 
 from pythoncommons.constants import ExecutionMode
+from pythoncommons.file_parser.parser_config_reader import ParserConfigReader, GenericBlockParserConfig
 from pythoncommons.file_utils import FileUtils, FindResultType
 from pythoncommons.logging_setup import SimpleLoggingSetupConfig, SimpleLoggingSetup
 from pythoncommons.os_utils import OsUtils
 from pythoncommons.project_utils import ProjectRootDeterminationStrategy, ProjectUtils, SimpleProjectUtils
-from pythoncommons.regex_utils import ParserConfigReader
 
 from monthlyexpensesummarizer.aggregator import Aggregator
 from monthlyexpensesummarizer.argparser import ArgParser
@@ -73,7 +73,8 @@ class MonthlyExpenseSummarizer:
         sample_project_filename = os.path.join(config_samples_dir, "parserconfig.json")
         input_filename = os.path.join(input_files_dir, "expenses-202108")
         config_reader: ParserConfigReader = ParserConfigReader.read_from_file(filename=sample_project_filename,
-                                                                              data_class=ParserConfig)
+                                                                              obj_data_class=ParserConfig,
+                                                                              config_type=GenericBlockParserConfig)
         MonthlyExpenseSummarizer._validate_mandatory_postfix_payment_methods(config_reader)
 
         LOG.info("Read project config: %s", pformat(config_reader.config))

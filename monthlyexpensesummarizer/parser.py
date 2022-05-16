@@ -2,7 +2,7 @@ import logging
 from dataclasses import dataclass
 
 from pythoncommons.file_parser.input_file_parser import GenericBlockBasedInputFileParser, DiagnosticConfig
-from pythoncommons.file_parser.parser_config_reader import ParserConfigReader, GenericParserConfig, RegexGenerator
+from pythoncommons.file_parser.parser_config_reader import ParserConfigReader, RegexGenerator, GenericBlockParserConfig
 
 from monthlyexpensesummarizer.config import ParserConfig, PaymentMethod, ItemType
 
@@ -50,7 +50,7 @@ class ExpenseInputFileParser:
                                              print_multi_line_block_headers=True,
                                              print_multi_line_blocks=True)
 
-        self.generic_parser_config: GenericParserConfig = config_reader.config
+        self.generic_parser_config: GenericBlockParserConfig = config_reader.config
         self.extended_config: ParserConfig = config_reader.extended_config
         multi_line_expense_open_chars = ExpenseInputFileParser._get_multiline_expense_open_chars(self.extended_config)
         multi_line_expense_close_chars = ExpenseInputFileParser._get_multiline_expense_close_chars(self.extended_config)
